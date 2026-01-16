@@ -8,20 +8,10 @@ import io
 import base64
 import uvicorn
 from typing import List
+from contextlib import asynccontextmanager
 
 # Global variable to store the pipeline
 pipe = None
-
-app = FastAPI(title="GLM-Image Web UI")
-
-# Pydantic models for request validation
-class TextToImageRequest(BaseModel):
-    prompt: str
-    height: int = 32 * 32
-    width: int = 36 * 32
-    num_inference_steps: int = 50
-    guidance_scale: float = 1.5
-    seed: int = 42
 
 def load_model():
     """Load the GLM-Image model"""
@@ -34,10 +24,26 @@ def load_model():
     print("Model loaded successfully!")
     return pipe
 
-@app.on_event("startup")
-async def startup_event():
-    """Load model when application starts"""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan event handler for startup and shutdown"""
+    # Startup: Load model
     load_model()
+    yield
+    # Shutdown: Cleanup (if needed)
+    # Currently no cleanup needed
+
+app = FastAPI(title="GLM-Image Web UI", lifespan=lifespan)
+
+# Pydantic models for request validation
+class TextToImageRequest(BaseModel):
+    prompt: str
+    height: int = 32 * 32
+    width: int = 36 * 32
+    num_inference_steps: int = 50
+    guidance_scale: float = 1.5
+    seed: int = 42
+
 
 def text_to_image(
     prompt: str,
