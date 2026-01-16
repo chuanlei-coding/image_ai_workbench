@@ -307,47 +307,122 @@ async def read_root():
             font-size: 1em;
         }
         
-        .file-upload {
+        .file-upload-area {
             border: 2px dashed #667eea;
-            border-radius: 8px;
-            padding: 30px;
+            border-radius: 12px;
+            padding: 20px;
             text-align: center;
             cursor: pointer;
             transition: all 0.3s;
             background: #f8f9ff;
+            position: relative;
         }
         
-        .file-upload:hover {
+        .file-upload-area:hover {
             background: #f0f2ff;
             border-color: #764ba2;
         }
         
-        .file-upload input[type="file"] {
+        .file-upload-area.dragover {
+            background: #e8ebff;
+            border-color: #667eea;
+            border-style: solid;
+        }
+        
+        .file-upload-area input[type="file"] {
             display: none;
         }
         
-        .file-list {
-            margin-top: 15px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-        
-        .file-item {
-            background: #e8e8e8;
-            padding: 8px 15px;
-            border-radius: 5px;
-            font-size: 0.9em;
-            display: flex;
+        .upload-button {
+            display: inline-flex;
             align-items: center;
             gap: 10px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: none;
         }
         
-        .file-item img {
-            width: 40px;
-            height: 40px;
-            object-fit: cover;
-            border-radius: 4px;
+        .upload-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .upload-icon {
+            font-size: 1.2em;
+        }
+        
+        .file-preview-container {
+            margin-top: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+        }
+        
+        .file-preview-item {
+            position: relative;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #f5f5f5;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .file-preview-item:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+        }
+        
+        .file-preview-item img {
+            width: 100%;
+            max-height: 400px;
+            object-fit: contain;
+            display: block;
+            background: #f9f9f9;
+        }
+        
+        .file-preview-actions {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            display: flex;
+            gap: 8px;
+        }
+        
+        .file-action-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.9);
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            transition: all 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .file-action-btn:hover {
+            background: white;
+            transform: scale(1.1);
+        }
+        
+        .file-preview-name {
+            padding: 8px 12px;
+            font-size: 0.85em;
+            color: #666;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         
         .btn {
@@ -545,12 +620,21 @@ async def read_root():
                     <form id="i2i-form">
                         <div class="form-group">
                             <label>Upload Images (can upload multiple)</label>
-                            <div class="file-upload" onclick="document.getElementById('i2i-files').click()">
+                            <div class="file-upload-area" id="i2i-upload-area" 
+                                 ondrop="handleDrop(event, 'i2i')" 
+                                 ondragover="handleDragOver(event)" 
+                                 ondragleave="handleDragLeave(event)">
                                 <input type="file" id="i2i-files" name="files" multiple accept="image/*" onchange="handleFileSelect(this, 'i2i')">
-                                <p>Click to upload or drag and drop</p>
-                                <p style="font-size: 0.9em; color: #666;">PNG, JPG, JPEG up to multiple files</p>
+                                <div style="margin-bottom: 15px;">
+                                    <button type="button" class="upload-button" onclick="document.getElementById('i2i-files').click()">
+                                        <span class="upload-icon">📷</span>
+                                        <span>Upload Image</span>
+                                    </button>
+                                </div>
+                                <p style="font-size: 0.9em; color: #666; margin: 0;">Click to upload or drag and drop images here</p>
+                                <p style="font-size: 0.85em; color: #999; margin-top: 5px;">PNG, JPG, JPEG supported</p>
                             </div>
-                            <div id="i2i-file-list" class="file-list"></div>
+                            <div id="i2i-file-list" class="file-preview-container"></div>
                         </div>
                         
                         <div class="form-group">
@@ -651,25 +735,76 @@ async def read_root():
         // File upload handling
         let uploadedFiles = { t2i: [], i2i: [] };
         
-        function handleFileSelect(input, prefix) {
-            const files = Array.from(input.files);
-            uploadedFiles[prefix] = files;
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.currentTarget.classList.add('dragover');
+        }
+        
+        function handleDragLeave(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.currentTarget.classList.remove('dragover');
+        }
+        
+        function handleDrop(e, prefix) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.currentTarget.classList.remove('dragover');
+            
+            const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
+            if (files.length > 0) {
+                addFiles(files, prefix);
+            }
+        }
+        
+        function addFiles(files, prefix) {
+            uploadedFiles[prefix] = [...uploadedFiles[prefix], ...files];
+            updateFilePreview(prefix);
+        }
+        
+        function removeFile(index, prefix) {
+            uploadedFiles[prefix].splice(index, 1);
+            updateFilePreview(prefix);
+            // Update file input
+            const input = document.getElementById(`${prefix}-files`);
+            const dt = new DataTransfer();
+            uploadedFiles[prefix].forEach(file => dt.items.add(file));
+            input.files = dt.files;
+        }
+        
+        function updateFilePreview(prefix) {
             const fileList = document.getElementById(`${prefix}-file-list`);
             fileList.innerHTML = '';
             
-            files.forEach((file, index) => {
+            uploadedFiles[prefix].forEach((file, index) => {
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     const div = document.createElement('div');
-                    div.className = 'file-item';
+                    div.className = 'file-preview-item';
                     div.innerHTML = `
                         <img src="${e.target.result}" alt="${file.name}">
-                        <span>${file.name}</span>
+                        <div class="file-preview-actions">
+                            <button type="button" class="file-action-btn" onclick="removeFile(${index}, '${prefix}')" title="Remove">
+                                ✕
+                            </button>
+                        </div>
+                        <div class="file-preview-name">${file.name}</div>
                     `;
                     fileList.appendChild(div);
                 };
                 reader.readAsDataURL(file);
             });
+        }
+        
+        function handleFileSelect(input, prefix) {
+            const files = Array.from(input.files);
+            addFiles(files, prefix);
+        }
+        
+        // Helper function to format time
+        function formatTime(seconds) {
+            return seconds.toFixed(1) + 's';
         }
         
         // Text-to-Image form submission
@@ -686,8 +821,14 @@ async def read_root():
             btnText.innerHTML = '<span class="loading"></span> Generating...';
             status.style.display = 'block';
             status.className = 'status';
-            status.textContent = 'Generating image...';
             result.style.display = 'none';
+            
+            // Start timer
+            const startTime = Date.now();
+            let timerInterval = setInterval(() => {
+                const elapsed = (Date.now() - startTime) / 1000;
+                status.textContent = `Generating image... (${formatTime(elapsed)})`;
+            }, 100); // Update every 100ms for smoother display
             
             const formData = {
                 prompt: document.getElementById('t2i-prompt').value,
@@ -711,14 +852,19 @@ async def read_root():
                 }
                 
                 const data = await response.json();
+                const totalTime = (Date.now() - startTime) / 1000;
+                clearInterval(timerInterval);
+                
                 image.src = data.image;
                 download.href = data.image;
                 result.style.display = 'block';
                 status.className = 'status success';
-                status.textContent = 'Image generated successfully!';
+                status.textContent = `Image generated successfully! (Time: ${formatTime(totalTime)})`;
             } catch (error) {
+                const totalTime = (Date.now() - startTime) / 1000;
+                clearInterval(timerInterval);
                 status.className = 'status error';
-                status.textContent = error.message;
+                status.textContent = `${error.message} (Time: ${formatTime(totalTime)})`;
             } finally {
                 btn.disabled = false;
                 btnText.textContent = 'Generate';
@@ -746,8 +892,14 @@ async def read_root():
             btnText.innerHTML = '<span class="loading"></span> Generating...';
             status.style.display = 'block';
             status.className = 'status';
-            status.textContent = 'Generating image...';
             result.style.display = 'none';
+            
+            // Start timer
+            const startTime = Date.now();
+            let timerInterval = setInterval(() => {
+                const elapsed = (Date.now() - startTime) / 1000;
+                status.textContent = `Generating image... (${formatTime(elapsed)})`;
+            }, 100); // Update every 100ms for smoother display
             
             const formData = new FormData();
             uploadedFiles.i2i.forEach(file => {
@@ -772,14 +924,19 @@ async def read_root():
                 }
                 
                 const data = await response.json();
+                const totalTime = (Date.now() - startTime) / 1000;
+                clearInterval(timerInterval);
+                
                 image.src = data.image;
                 download.href = data.image;
                 result.style.display = 'block';
                 status.className = 'status success';
-                status.textContent = 'Image generated successfully!';
+                status.textContent = `Image generated successfully! (Time: ${formatTime(totalTime)})`;
             } catch (error) {
+                const totalTime = (Date.now() - startTime) / 1000;
+                clearInterval(timerInterval);
                 status.className = 'status error';
-                status.textContent = error.message;
+                status.textContent = `${error.message} (Time: ${formatTime(totalTime)})`;
             } finally {
                 btn.disabled = false;
                 btnText.textContent = 'Generate';
